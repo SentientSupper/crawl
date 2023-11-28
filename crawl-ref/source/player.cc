@@ -874,7 +874,7 @@ maybe_bool you_can_wear(equipment_type eq, bool temp)
         alternate.sub_type = ARM_ROBE;
         break;
 
-    case EQ_SHIELD:
+    case EQ_OFFHAND:
         // Assume that anything that can use an orb can wear some kind of
         // shield
         dummy.sub_type = ARM_ORB;
@@ -976,11 +976,17 @@ int player::wearing(equipment_type slot, int sub_type) const
         // Hands can have more than just weapons.
         if (weapon() && weapon()->is_type(OBJ_WEAPONS, sub_type))
             ret++;
+        // Special handling for dual wielding.
+        if (offhand_weapon() && offhand_weapon()->is_type(OBJ_WEAPONS, sub_type))
+            ret++;
         break;
 
     case EQ_STAFF:
         // Like above, but must be magical staff.
         if (weapon() && weapon()->is_type(OBJ_STAVES, sub_type))
+            ret++;
+        // Special handling for dual wielding.
+        if (offhand_weapon() && offhand_weapon()->is_type(OBJ_STAVES, sub_type))
             ret++;
         break;
 
@@ -2019,7 +2025,7 @@ static int _player_adjusted_evasion_penalty(const int scale)
     // Some lesser armours have small penalties now (barding).
     for (int i = EQ_MIN_ARMOUR; i < EQ_MAX_ARMOUR; i++)
     {
-        if (i == EQ_SHIELD || !you.slot_item(static_cast<equipment_type>(i)))
+        if (i == EQ_OFFHAND || !you.slot_item(static_cast<equipment_type>(i)))
             continue;
 
         // [ds] Evasion modifiers for armour are negatives, change
@@ -2231,8 +2237,9 @@ int player_shield_class()
     if (you.incapacitated())
         return 0;
 
-    if (you.shield())
-        shield += _sh_from_shield(you.inv[you.equip[EQ_SHIELD]]);
+    const item_def *shield_item = you.shield();
+    if (shield_item)
+        shield += _sh_from_shield(*shield_item);
 
     // mutations
     // +4, +6, +8 (displayed values)
@@ -3300,26 +3307,52 @@ static void _display_tohit()
 #endif
 }
 
+static int _delay_for(const item_def *weapon)
+{
+    if (!weapon || !is_range_weapon(*weapon))
+        return you.attack_delay_with(nullptr, true, weapon).expected();
+    item_def fake_proj;
+    populate_fake_projectile(*weapon, fake_proj);
+    return you.attack_delay_with(&fake_proj, true, weapon).expected();
+}
+
+static bool _at_min_delay(const item_def *weapon)
+{
+    return weapon
+           && you.skill(item_attack_skill(*weapon))
+              >= weapon_min_delay_skill(*weapon);
+}
+
+static bool _at_min_delay(const item_def *primary,
+                          const item_def *offhand,
+                          int primary_delay, int offhand_delay)
+{
+    const bool primary_mindelayed = _at_min_delay(primary);
+    if (!offhand)
+        return primary_mindelayed;
+
+    const bool offhand_mindelayed = _at_min_delay(offhand);
+    return primary_mindelayed && offhand_mindelayed
+        || primary_delay >= offhand_delay && primary_mindelayed
+        || offhand_delay >= primary_delay && offhand_mindelayed;
+}
+
 /**
  * Print a message indicating the player's attack delay with their current
- * weapon (if applicable).
+ * weapon(s) (if applicable).
  */
-static void _display_attack_delay()
+static void _display_attack_delay(const item_def *offhand)
 {
     const item_def* weapon = you.weapon();
-    int delay;
-    if (weapon && is_range_weapon(*weapon))
-    {
-        item_def fake_proj;
-        populate_fake_projectile(*weapon, fake_proj);
-        delay = you.attack_delay(&fake_proj).expected();
-    }
-    else
-        delay = you.attack_delay(nullptr).expected();
+    const int primary_delay = _delay_for(weapon);
+    const int offhand_delay = offhand ? _delay_for(offhand) : -1;
 
-    const bool at_min_delay = weapon
-                              && you.skill(item_attack_skill(*weapon))
-                                 >= weapon_min_delay_skill(*weapon);
+    const bool at_min_delay = _at_min_delay(weapon, offhand,
+                                            primary_delay, offhand_delay);
+
+    // Assume that we never have a shield penalty with an offhand weapon,
+    // and we only have an armour penalty with the offhand if we do with
+    // the primary.
     const bool shield_penalty = you.adjusted_shield_penalty(2) > 0;
     const bool armour_penalty = is_slowed_by_armour(weapon)
                                 && you.adjusted_body_armour_penalty(2) > 0;
@@ -3335,7 +3368,7 @@ static void _display_attack_delay()
     }
 
     mprf("Your attack delay is about %.1f%s%s.",
-         delay / 10.0f,
+         max(primary_delay, offhand_delay) / 10.0f,
          at_min_delay ?
             " (and cannot be improved with additional weapon skill)" : "",
          penalty_msg.c_str());
@@ -3345,9 +3378,8 @@ static void _display_attack_delay()
  * Print a message listing double the player's best-case damage with their current
  * weapon (if applicable), or with unarmed combat (if not).
  */
-static void _display_damage_rating()
+static void _display_damage_rating(const item_def *weapon)
 {
-    const item_def *weapon = you.weapon();
     string weapon_name;
     if (weapon)
         weapon_name = weapon->name(DESC_YOUR);
@@ -3396,10 +3428,13 @@ void display_char_status()
     if (!cinfo.empty())
         mpr(cinfo);
 
+    const item_def* offhand = you.offhand_weapon();
     _display_movement_speed();
     _display_tohit();
-    _display_attack_delay();
-    _display_damage_rating();
+    _display_attack_delay(offhand);
+    _display_damage_rating(you.weapon());
+    if (offhand)
+        _display_damage_rating(offhand);
 
     // Display base attributes, if necessary.
     if (innate_stat(STAT_STR) != you.strength()
@@ -3584,12 +3619,8 @@ int player::scan_artefacts(artefact_prop_type which_property,
         const item_def &item = inv[eq];
 
         // Only weapons give their effects when in our hands.
-        if (i == EQ_WEAPON
-            && item.base_type != OBJ_WEAPONS
-            && item.base_type != OBJ_STAVES)
-        {
+        if (i == EQ_WEAPON && !is_weapon(item))
             continue;
-        }
 
         int val = 0;
 
@@ -5901,7 +5932,7 @@ int player::adjusted_body_armour_penalty(int scale) const
  */
 int player::adjusted_shield_penalty(int scale) const
 {
-    const item_def *shield_l = slot_item(EQ_SHIELD, false);
+    const item_def *shield_l = shield();
     if (!shield_l)
         return 0;
 
@@ -6236,7 +6267,7 @@ int player::base_ac_with_specific_items(int scale,
     for (auto item : armour_items)
     {
         // Shields give SH instead of AC
-        if (get_armour_slot(*item) != EQ_SHIELD)
+        if (get_armour_slot(*item) != EQ_OFFHAND)
         {
             AC += base_ac_from(*item, 100);
             AC += item->plus * 100;
@@ -7208,7 +7239,7 @@ bool player::has_usable_offhand() const
 {
     if (get_mutation_level(MUT_MISSING_HAND))
         return false;
-    if (shield())
+    if (shield() || offhand_weapon())
         return false;
 
     const item_def* wp = slot_item(EQ_WEAPON);
