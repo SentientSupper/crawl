@@ -729,11 +729,12 @@ int apply_chunked_AC(int dam, int ac)
 
 ///////////////////////////////////////////////////////////////////////////
 
-static bool _weapon_is_ok(const item_def *weapon, bool &penance)
+static bool _weapon_is_bad(const item_def *weapon, bool &penance)
 {
-    return weapon
-           && !needs_handle_warning(*weapon, OPER_ATTACK, penance)
-           && (is_melee_weapon(*weapon) || _can_shoot_with(weapon));
+    if (!weapon)
+        return false;
+    return needs_handle_warning(*weapon, OPER_ATTACK, penance)
+           || !is_melee_weapon(*weapon) && !_can_shoot_with(weapon);
 }
 
 /// If we have an off-hand weapon, will it attack when we fire/swing our main weapon?
@@ -758,31 +759,37 @@ static string _describe_weapons(const item_def *weapon,
                         offhand->name(DESC_YOUR).c_str());
 }
 
+static bool _missing_weapon(const item_def *weapon, const item_def *offhand)
+{
+    if (weapon || offhand) // TODO: maybe should warn for untrained UC here..?
+        return false;
+    // OK, we're unarmed. Is that... a bad thing?
+    // Don't pester the player if they're using UC, in treeform,
+    // or if they don't have any melee weapons yet.
+    return !you.skill(SK_UNARMED_COMBAT)
+           && you.form != transformation::tree
+           && any_of(you.inv.begin(), you.inv.end(),
+                     [](item_def &it) {
+               return is_melee_weapon(it) && can_wield(&it);
+            });
+}
+
 bool wielded_weapon_check(const item_def *weapon, string attack_verb)
 {
-    bool penance = false;
     const item_def *offhand = you.offhand_weapon();
     if (you.received_weapon_warning || you.confused())
         return true;
 
-    if (_weapon_is_ok(weapon, penance)
-        && (!_rangedness_matches(weapon, offhand)
-            || _weapon_is_ok(offhand, penance)))
-    {
-        return true;
-    }
+    bool penance = false;
+    const bool primary_bad = _weapon_is_bad(weapon, penance);
+    // Important: check rangedness_matches *before* checking weapon_is_bad
+    // for the offhand, so that we don't incorrectly claim you'll get penance
+    // for a weapon that won't even attack!
+    const bool offhand_bad = !_rangedness_matches(weapon, offhand)
+                             || _weapon_is_bad(offhand, penance);
 
-    // Don't pester the player if they're using UC, in treeform,
-    // or if they don't have any melee weapons yet.
-    if (!weapon && !offhand
-        && (you.skill(SK_UNARMED_COMBAT) > 0
-            || you.form == transformation::tree
-            || !any_of(you.inv.begin(), you.inv.end(),
-                       [](item_def &it)
-                       { return is_melee_weapon(it) && can_wield(&it); })))
-    {
+    if (!primary_bad && !offhand_bad && !_missing_weapon(weapon, offhand))
         return true;
-    }
 
     string wpn_desc = _describe_weapons(weapon, offhand);
 
