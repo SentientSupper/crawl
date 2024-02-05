@@ -17,6 +17,7 @@ tile_list_processor::tile_list_processor() :
     m_corpsify(false),
     m_composing(false),
     m_shrink(true),
+    m_mirror_horizontal(false),
     m_prefix("TILE"),
     m_start_value("0"),
     m_start_value_module(""),
