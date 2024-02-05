@@ -222,7 +222,7 @@ void equip_effect(equipment_type slot, int item_slot, bool unmeld, bool msg)
 
     identify_item(item);
 
-    if (slot == EQ_WEAPON)
+    if (slot == EQ_WEAPON || (slot == EQ_OFFHAND && is_weapon(item)))
         _equip_weapon_effect(item, msg, unmeld);
     else if (slot >= EQ_CLOAK && slot <= EQ_BODY_ARMOUR)
         _equip_armour_effect(item, unmeld, slot);
@@ -242,7 +242,7 @@ void unequip_effect(equipment_type slot, int item_slot, bool meld, bool msg)
 
     const interrupt_block block_meld_interrupts(meld);
 
-    if (slot == EQ_WEAPON)
+    if (slot == EQ_WEAPON || (slot == EQ_OFFHAND && is_weapon(item)))
         _unequip_weapon_effect(item, msg, meld);
     else if (slot >= EQ_CLOAK && slot <= EQ_BODY_ARMOUR)
         _unequip_armour_effect(item, meld, slot);
