@@ -708,9 +708,6 @@ void throw_it(quiver::action &a)
         item_def *offhand = you.offhand_weapon();
         if (offhand && is_range_weapon(*offhand))
         {
-            const int alt_dur = you.attack_delay_with(&item, false, offhand).roll();
-            you.time_taken = max(you.time_taken, alt_dur);
-
             item_def alt_fake_proj;
             populate_fake_projectile(*offhand, alt_fake_proj);
 

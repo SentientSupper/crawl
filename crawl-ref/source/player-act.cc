@@ -287,7 +287,22 @@ brand_type player::damage_brand(int)
  */
 random_var player::attack_delay(const item_def *projectile, bool rescale) const
 {
-    return attack_delay_with(projectile, rescale, weapon());
+    const item_def *primary = weapon();
+    const random_var primary_delay = attack_delay_with(projectile, rescale, primary);
+    if (projectile && !is_launcher_ammo(*projectile))
+        return primary_delay; // throwing doens't use the offhand
+
+    const item_def *offhand = you.offhand_weapon();
+    if (!offhand
+        || is_melee_weapon(*offhand) && projectile
+        || is_range_weapon(*offhand) && !projectile)
+    {
+        return primary_delay;
+    }
+
+    // re-use of projectile is very dubious here
+    const random_var offhand_delay = attack_delay_with(projectile, rescale, offhand);
+    return (primary_delay + offhand_delay) / 2;
 }
 
 random_var player::attack_delay_with(const item_def *projectile, bool rescale,

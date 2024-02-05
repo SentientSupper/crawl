@@ -102,7 +102,7 @@ bool melee_attack::bad_attempt()
     if (!attacker->is_player() || !defender || !defender->is_monster())
         return false;
 
-    if (player_unrand_bad_attempt(attacker->offhand_weapon()))
+    if (player_unrand_bad_attempt(offhand_weapon()))
         return true;
 
     if (!cleave_targets.empty())
@@ -122,7 +122,7 @@ bool melee_attack::would_prompt_player()
     if (!attacker->is_player())
         return false;
 
-    item_def *offhand = attacker->offhand_weapon();
+    item_def *offhand = offhand_weapon();
     bool penance;
     return weapon && needs_handle_warning(*weapon, OPER_ATTACK, penance)
            || offhand && !is_range_weapon(*offhand)
@@ -822,6 +822,14 @@ void melee_attack::handle_spectral_brand()
     spectral_weapon_fineff::schedule(*attacker, *defender, is_off_hand);
 }
 
+item_def *melee_attack::offhand_weapon() const
+{
+    item_def *offhand = attacker->offhand_weapon();
+    if (!offhand || is_range_weapon(*offhand))
+        return nullptr;
+    return offhand;
+}
+
 void melee_attack::launch_offhand_attack(item_def &offhand)
 {
     if (!defender
@@ -851,17 +859,17 @@ void melee_attack::launch_offhand_attack(item_def &offhand)
         attck.damage_brand = get_weapon_brand(offhand);
     attck.init_attack(SK_UNARMED_COMBAT, attack_number /*hm*/);
     attck.attack();
-    launched_offhand_attack = true;
 }
 
 
 int melee_attack::roll_delay() const
 {
-    const int delay = you.attack_delay_with(nullptr, true, weapon).roll();
-    if (!launched_offhand_attack)
-        return delay;
-    return max(you.attack_delay_with(nullptr, true,
-                                     you.offhand_weapon()).roll(), delay);
+    random_var delay = you.attack_delay_with(nullptr, true, weapon);
+    const item_def *offhand = offhand_weapon();
+    if (!offhand)
+        return delay.roll();
+    delay += you.attack_delay_with(nullptr, true, offhand);
+    return (delay/2).roll();
 }
 
 bool melee_attack::handle_phase_end()
@@ -894,8 +902,8 @@ bool melee_attack::handle_phase_end()
 
     if (!is_multihit && !cleaving && !is_off_hand)
     {
-        item_def *offhand = attacker->offhand_weapon();
-        if (offhand && !is_range_weapon(*offhand))
+        item_def *offhand = offhand_weapon();
+        if (offhand)
             launch_offhand_attack(*offhand);
     }
 

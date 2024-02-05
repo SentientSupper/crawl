@@ -178,7 +178,7 @@ private:
 
     bool can_reach();
 
-    bool launched_offhand_attack = false;
+    item_def *offhand_weapon() const;
 };
 
 string aux_attack_desc(unarmed_attack_type unat, int force_damage = -1);

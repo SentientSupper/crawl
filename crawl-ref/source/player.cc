@@ -3307,13 +3307,13 @@ static void _display_tohit()
 #endif
 }
 
-static int _delay_for(const item_def *weapon)
+static double _delay(const item_def *weapon)
 {
     if (!weapon || !is_range_weapon(*weapon))
-        return you.attack_delay_with(nullptr, true, weapon).expected();
+        return you.attack_delay().expected();
     item_def fake_proj;
     populate_fake_projectile(*weapon, fake_proj);
-    return you.attack_delay_with(&fake_proj, true, weapon).expected();
+    return you.attack_delay(&fake_proj).expected();
 }
 
 static bool _at_min_delay(const item_def *weapon)
@@ -3323,20 +3323,6 @@ static bool _at_min_delay(const item_def *weapon)
               >= weapon_min_delay_skill(*weapon);
 }
 
-static bool _at_min_delay(const item_def *primary,
-                          const item_def *offhand,
-                          int primary_delay, int offhand_delay)
-{
-    const bool primary_mindelayed = _at_min_delay(primary);
-    if (!offhand)
-        return primary_mindelayed;
-
-    const bool offhand_mindelayed = _at_min_delay(offhand);
-    return primary_mindelayed && offhand_mindelayed
-        || primary_delay >= offhand_delay && primary_mindelayed
-        || offhand_delay >= primary_delay && offhand_mindelayed;
-}
-
 /**
  * Print a message indicating the player's attack delay with their current
  * weapon(s) (if applicable).
@@ -3344,11 +3330,9 @@ static bool _at_min_delay(const item_def *primary,
 static void _display_attack_delay(const item_def *offhand)
 {
     const item_def* weapon = you.weapon();
-    const int primary_delay = _delay_for(weapon);
-    const int offhand_delay = offhand ? _delay_for(offhand) : -1;
-
-    const bool at_min_delay = _at_min_delay(weapon, offhand,
-                                            primary_delay, offhand_delay);
+    const double delay = _delay(weapon);
+    const bool at_min_delay = _at_min_delay(weapon)
+                              && (!offhand || _at_min_delay(offhand));
 
     // Assume that we never have a shield penalty with an offhand weapon,
     // and we only have an armour penalty with the offhand if we do with
@@ -3368,7 +3352,7 @@ static void _display_attack_delay(const item_def *offhand)
     }
 
     mprf("Your attack delay is about %.1f%s%s.",
-         max(primary_delay, offhand_delay) / 10.0f,
+         delay / 10.0f,
          at_min_delay ?
             " (and cannot be improved with additional weapon skill)" : "",
          penalty_msg.c_str());
