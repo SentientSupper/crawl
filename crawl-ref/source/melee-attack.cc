@@ -814,12 +814,12 @@ bool melee_attack::handle_phase_killed()
     return attack::handle_phase_killed();
 }
 
-static void _handle_spectral_brand(actor &attacker, const actor &defender)
+void melee_attack::handle_spectral_brand()
 {
-    if (attacker.type == MONS_SPECTRAL_WEAPON || !defender.alive())
+    if (attacker->type == MONS_SPECTRAL_WEAPON || !defender->alive())
         return;
-    attacker.triggered_spectral = true;
-    spectral_weapon_fineff::schedule(attacker, defender);
+    attacker->triggered_spectral = true;
+    spectral_weapon_fineff::schedule(*attacker, *defender, is_off_hand);
 }
 
 void melee_attack::launch_offhand_attack(item_def &offhand)
@@ -925,10 +925,10 @@ bool melee_attack::handle_phase_end()
     if (defender && !is_multihit)
     {
         if (damage_brand == SPWPN_SPECTRAL)
-            _handle_spectral_brand(*attacker, *defender);
+            handle_spectral_brand();
         // Use the Nessos hack to give the player glaive of the guard spectral too
         if (weapon && is_unrandom_artefact(*weapon, UNRAND_GUARD))
-            _handle_spectral_brand(*attacker, *defender);
+            handle_spectral_brand();
     }
 
     // Dead but not yet reset, most likely due to an attack flavour that

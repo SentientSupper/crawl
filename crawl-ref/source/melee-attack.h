@@ -168,6 +168,7 @@ private:
                                    bool check_only = false);
     void _defender_die();
     void launch_offhand_attack(item_def &offhand);
+    void handle_spectral_brand();
 
     // Added in, were previously static methods of fight.cc
     bool _extra_aux_attack(unarmed_attack_type atk);
