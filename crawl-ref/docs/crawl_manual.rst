@@ -1828,10 +1828,10 @@ Steel Elves (SE)
    allows them to wield one weapon in each hand, letting the spirits guide their
    strikes.
 
-   The spirits offer one further gift. Steel Elves which have yet to wed find
-   creatures of all kinds attracted to them, magically pulled close in the
-   hopes of love-at-first-sight. Sadly, this does nothing to improve the
-   dispositions of the Dungeon's relentlessly hostile inhabitants.
+   The spirits offer one further gift. Steel Elves from the wide-open lands
+   outside the Dungeon find creatures within attracted to them, magically
+   pulled close by a powerful animal magnetism. Sadly, this does nothing to
+   improve the dispositions of the Dungeon's relentlessly hostile inhabitants.
 
 Demigods (Dg)
   Demigods are mortals with some divine or angelic ancestry, however distant.
